@@ -459,9 +459,35 @@ class Game {
   }
 
   bindUI() {
-    document.getElementById('start-btn').addEventListener('click', () => this.startGame());
-    document.getElementById('retry-btn').addEventListener('click', () => this.startGame());
-    document.getElementById('share-btn').addEventListener('click', () => this.share());
+    // 모바일 호환을 위해 click + touchstart 둘 다 등록
+    // touchstart는 더 빠르고 모바일 사파리에서 안정적
+    const startHandler = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      this.startGame();
+    };
+    const startBtn = document.getElementById('start-btn');
+    startBtn.addEventListener('click', startHandler);
+    startBtn.addEventListener('touchstart', startHandler, { passive: false });
+
+    const retryHandler = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      this.startGame();
+    };
+    const retryBtn = document.getElementById('retry-btn');
+    retryBtn.addEventListener('click', retryHandler);
+    retryBtn.addEventListener('touchstart', retryHandler, { passive: false });
+
+    const shareHandler = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      this.share();
+    };
+    const shareBtn = document.getElementById('share-btn');
+    shareBtn.addEventListener('click', shareHandler);
+    shareBtn.addEventListener('touchstart', shareHandler, { passive: false });
+
     document.getElementById('best').textContent = this.bestDistance + 'm';
 
     // 음소거 토글

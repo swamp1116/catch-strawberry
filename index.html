@@ -130,6 +130,12 @@
       position: absolute;
       top: 0; left: 0;
       cursor: pointer;
+      z-index: 30;
+      -webkit-tap-highlight-color: transparent;
+      touch-action: manipulation;
+      /* 모바일에서 더블탭 줌 방지 */
+      user-select: none;
+      -webkit-user-select: none;
     }
     .overlay h1 {
       font-size: 38px;

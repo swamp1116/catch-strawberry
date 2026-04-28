@@ -431,6 +431,8 @@ class Game {
     this.setupBackground();
     this.setupCharacters();
     this.bindInput();
+    // 초기 상태: 타이틀 화면 모드 (HUD/mute 버튼 숨김)
+    document.body.classList.add('title-mode');
     // PixiJS 7: ticker callback은 delta (number)를 받음
     // app.ticker.deltaMS로 직접 접근
     this.app.ticker.add(() => this.update());
@@ -624,6 +626,9 @@ class Game {
     document.getElementById('title-screen').classList.add('hidden');
     document.getElementById('gameover-screen').classList.add('hidden');
     document.getElementById('danger-flash').classList.remove('warning', 'mirror-warning');
+
+    // 게임 모드로 전환: HUD/mute 버튼 표시
+    document.body.classList.remove('title-mode', 'gameover-mode');
 
     this.updateHoldIndicator();
     this.updateHUD();
@@ -1080,6 +1085,8 @@ class Game {
         : `최고기록 ${this.bestDistance}m / Best ${this.bestDistance}m`;
     document.getElementById('gameover-screen').classList.remove('hidden');
     document.getElementById('danger-flash').classList.remove('warning', 'mirror-warning');
+    // 게임오버 모드: HUD/mute 버튼 숨김
+    document.body.classList.add('gameover-mode');
   }
 
   share() {

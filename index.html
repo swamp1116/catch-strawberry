@@ -55,6 +55,17 @@
       z-index: 10;
       color: #fff;
       font-weight: 700;
+      transition: opacity 0.3s;
+    }
+    /* 타이틀/게임오버 화면 보일 때 게임 UI 숨김 */
+    body.title-mode #hud,
+    body.title-mode #mute-btn,
+    body.title-mode #hold-indicator,
+    body.gameover-mode #hud,
+    body.gameover-mode #mute-btn,
+    body.gameover-mode #hold-indicator {
+      opacity: 0;
+      pointer-events: none;
     }
     .hud-box {
       background: rgba(0, 0, 0, 0.55);
@@ -136,6 +147,27 @@
       /* 모바일에서 더블탭 줌 방지 */
       user-select: none;
       -webkit-user-select: none;
+    }
+    /* 타이틀 한국어 CTA - 이미지의 TAP TO START 바로 위 */
+    .title-korean-cta {
+      position: absolute;
+      bottom: 86px;
+      left: 50%;
+      transform: translateX(-50%);
+      color: #ffd60a;
+      font-size: 17px;
+      font-weight: 800;
+      letter-spacing: 2px;
+      text-shadow:
+        0 0 12px rgba(255, 50, 80, 0.8),
+        0 2px 4px rgba(0, 0, 0, 0.9);
+      z-index: 31;
+      pointer-events: none;
+      animation: pulseTitleCta 1.4s ease-in-out infinite;
+    }
+    @keyframes pulseTitleCta {
+      0%, 100% { opacity: 0.9; transform: translateX(-50%) scale(1); }
+      50% { opacity: 1; transform: translateX(-50%) scale(1.05); }
     }
     .overlay h1 {
       font-size: 38px;
@@ -305,6 +337,7 @@
       <!-- 타이틀 화면 (풀스크린 이미지) -->
       <div class="overlay" id="title-screen">
         <div class="tap-area" id="start-btn"></div>
+        <div class="title-korean-cta">탭해서 시작하기</div>
       </div>
 
       <!-- 게임오버 화면 -->

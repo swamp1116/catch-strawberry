@@ -118,6 +118,7 @@ class SoundEngine {
     this.ctx = null;
     this.masterVolume = 0.5;
     this.muted = false;
+    this.unlocked = false; // iOS Safari unlock 상태
   }
 
   // 사용자 입력 후에 AudioContext 초기화 (브라우저 정책)
@@ -128,9 +129,29 @@ class SoundEngine {
       this.ctx = new AC();
     }
     if (this.ctx.state === 'suspended') {
-      this.ctx.resume();
+      this.ctx.resume().catch(() => {});
     }
     return true;
+  }
+
+  // iOS Safari unlock - 사용자 제스처 안에서 무음 한 번 재생해 컨텍스트 깨움
+  // 이거 안 하면 모바일에서 사운드가 영원히 안 나올 수 있음
+  unlock() {
+    if (this.unlocked) return;
+    if (!this.ensureContext()) return;
+    try {
+      // 거의 무음의 짧은 osc를 재생해서 iOS audio 시스템 깨우기
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+      gain.gain.value = 0.0001; // 사실상 무음
+      osc.connect(gain);
+      gain.connect(this.ctx.destination);
+      osc.start(0);
+      osc.stop(this.ctx.currentTime + 0.01);
+      this.unlocked = true;
+    } catch (e) {
+      console.warn('Audio unlock failed:', e);
+    }
   }
 
   // 또각또각 (heel click) - 짧고 높은 톡
@@ -431,6 +452,8 @@ class Game {
     const stage = document.getElementById('game-stage');
     const onDown = (e) => {
       e.preventDefault();
+      // iOS audio 안전망 (혹시라도 unlock 실패했을 경우)
+      this.sound.unlock();
       if (this.state === GameState.PLAYING) { this.isHolding = true; this.updateHoldIndicator(); }
     };
     const onUp = (e) => {
@@ -504,6 +527,8 @@ class Game {
   startGame() {
     // 사용자 제스처 후 AudioContext 활성화 (브라우저 정책)
     this.sound.ensureContext();
+    // iOS Safari를 위한 unlock (무음 짧은 톤으로 audio 시스템 깨우기)
+    this.sound.unlock();
 
     this.state = GameState.PLAYING;
     this.strawberryState = StrawberryState.WALKING;

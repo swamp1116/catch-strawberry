@@ -160,12 +160,23 @@ class SoundEngine {
     return true;
   }
 
+  // 디버그 패널 업데이트
+  updateDebug(msg) {
+    const dbg = document.getElementById('debug-text');
+    if (dbg) dbg.innerHTML = msg;
+  }
+
   // iOS Safari unlock - 사용자 제스처 안에서 무음 한 번 재생해 컨텍스트 깨움
   unlock() {
-    if (this.unlocked) return;
-    if (!this.ensureContext()) return;
+    if (this.unlocked) {
+      this.updateDebug(`✅ Already unlocked. State: ${this.ctx?.state}`);
+      return;
+    }
+    if (!this.ensureContext()) {
+      this.updateDebug('❌ AudioContext not available');
+      return;
+    }
     try {
-      // 거의 무음의 짧은 osc 재생
       const osc = this.ctx.createOscillator();
       const gain = this.ctx.createGain();
       gain.gain.value = 0.0001;
@@ -174,30 +185,42 @@ class SoundEngine {
       osc.start(0);
       osc.stop(this.ctx.currentTime + 0.01);
 
-      // iOS 추가 트릭: 빈 buffer source도 재생
       const buffer = this.ctx.createBuffer(1, 1, 22050);
       const source = this.ctx.createBufferSource();
       source.buffer = buffer;
       source.connect(this.ctx.destination);
       source.start(0);
 
+      this.updateDebug(`Unlock attempt. State: ${this.ctx.state}, muted: ${this.muted}`);
+
       if (this.ctx.state === 'running') {
         this.unlocked = true;
-        console.log('Audio unlocked. State:', this.ctx.state);
+        this.updateDebug(`✅ Audio unlocked! State: running, muted: ${this.muted}`);
       } else {
         this.ctx.resume().then(() => {
           this.unlocked = true;
-          console.log('Audio unlocked (resumed). State:', this.ctx.state);
-        }).catch(err => console.warn('Resume failed:', err));
+          this.updateDebug(`✅ Resumed! State: ${this.ctx.state}, muted: ${this.muted}`);
+        }).catch(err => {
+          this.updateDebug(`❌ Resume failed: ${err.message}`);
+        });
       }
     } catch (e) {
-      console.warn('Audio unlock failed:', e);
+      this.updateDebug(`❌ Unlock error: ${e.message}`);
     }
   }
 
   // 또각또각 (heel click) - 짧고 높은 톡
   playHeelClick() {
-    if (this.muted || !this.ensureContext()) return;
+    this.heelCount = (this.heelCount || 0) + 1;
+    if (this.muted) {
+      this.updateDebug(`Heel ${this.heelCount}: MUTED. State: ${this.ctx?.state}`);
+      return;
+    }
+    if (!this.ensureContext()) {
+      this.updateDebug(`Heel ${this.heelCount}: NO CTX`);
+      return;
+    }
+    this.updateDebug(`🔊 Heel ${this.heelCount}: playing. State: ${this.ctx.state}`);
     const t = this.ctx.currentTime;
     const osc = this.ctx.createOscillator();
     const gain = this.ctx.createGain();
@@ -491,13 +514,25 @@ class Game {
   // ---------------- 입력 ----------------
   bindInput() {
     const stage = document.getElementById('game-stage');
+    // mute 버튼 같은 UI 요소 위에서는 게임 입력 무시
+    const isUIElement = (target) => {
+      while (target && target !== stage) {
+        if (target.id === 'mute-btn' || target.closest?.('#mute-btn')) return true;
+        if (target.tagName === 'BUTTON') return true;
+        target = target.parentElement;
+      }
+      return false;
+    };
     const onDown = (e) => {
+      // UI 요소 위면 게임 입력 무시 (버튼 클릭이 정상 동작하도록)
+      if (isUIElement(e.target)) return;
       e.preventDefault();
-      // iOS audio 안전망 (혹시라도 unlock 실패했을 경우)
+      // iOS audio 안전망
       this.sound.unlock();
       if (this.state === GameState.PLAYING) { this.isHolding = true; this.updateHoldIndicator(); }
     };
     const onUp = (e) => {
+      if (isUIElement(e.target)) return;
       e.preventDefault();
       if (this.state === GameState.PLAYING) { this.isHolding = false; this.updateHoldIndicator(); }
     };
@@ -554,13 +589,17 @@ class Game {
 
     document.getElementById('best').textContent = this.bestDistance + 'm';
 
-    // 음소거 토글
+    // 음소거 토글 (모바일 호환)
     const muteBtn = document.getElementById('mute-btn');
     if (muteBtn) {
-      muteBtn.addEventListener('click', () => {
+      const muteHandler = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
         const muted = this.sound.toggleMute();
         muteBtn.textContent = muted ? '🔇' : '🔊';
-      });
+      };
+      muteBtn.addEventListener('click', muteHandler);
+      muteBtn.addEventListener('touchstart', muteHandler, { passive: false });
     }
   }
 

@@ -160,23 +160,12 @@ class SoundEngine {
     return true;
   }
 
-  // 디버그 패널 업데이트
-  updateDebug(msg) {
-    const dbg = document.getElementById('debug-text');
-    if (dbg) dbg.innerHTML = msg;
-  }
-
   // iOS Safari unlock - 사용자 제스처 안에서 무음 한 번 재생해 컨텍스트 깨움
   unlock() {
-    if (this.unlocked) {
-      this.updateDebug(`✅ Already unlocked. State: ${this.ctx?.state}`);
-      return;
-    }
-    if (!this.ensureContext()) {
-      this.updateDebug('❌ AudioContext not available');
-      return;
-    }
+    if (this.unlocked) return;
+    if (!this.ensureContext()) return;
     try {
+      // 거의 무음의 짧은 osc 재생 (audio 시스템 깨우기)
       const osc = this.ctx.createOscillator();
       const gain = this.ctx.createGain();
       gain.gain.value = 0.0001;
@@ -185,42 +174,28 @@ class SoundEngine {
       osc.start(0);
       osc.stop(this.ctx.currentTime + 0.01);
 
+      // iOS 추가 트릭: 빈 buffer source도 재생
       const buffer = this.ctx.createBuffer(1, 1, 22050);
       const source = this.ctx.createBufferSource();
       source.buffer = buffer;
       source.connect(this.ctx.destination);
       source.start(0);
 
-      this.updateDebug(`Unlock attempt. State: ${this.ctx.state}, muted: ${this.muted}`);
-
       if (this.ctx.state === 'running') {
         this.unlocked = true;
-        this.updateDebug(`✅ Audio unlocked! State: running, muted: ${this.muted}`);
       } else {
         this.ctx.resume().then(() => {
           this.unlocked = true;
-          this.updateDebug(`✅ Resumed! State: ${this.ctx.state}, muted: ${this.muted}`);
-        }).catch(err => {
-          this.updateDebug(`❌ Resume failed: ${err.message}`);
-        });
+        }).catch(() => {});
       }
     } catch (e) {
-      this.updateDebug(`❌ Unlock error: ${e.message}`);
+      // 조용히 실패
     }
   }
 
   // 또각또각 (heel click) - 짧고 높은 톡
   playHeelClick() {
-    this.heelCount = (this.heelCount || 0) + 1;
-    if (this.muted) {
-      this.updateDebug(`Heel ${this.heelCount}: MUTED. State: ${this.ctx?.state}`);
-      return;
-    }
-    if (!this.ensureContext()) {
-      this.updateDebug(`Heel ${this.heelCount}: NO CTX`);
-      return;
-    }
-    this.updateDebug(`🔊 Heel ${this.heelCount}: playing. State: ${this.ctx.state}`);
+    if (this.muted || !this.ensureContext()) return;
     const t = this.ctx.currentTime;
     const osc = this.ctx.createOscillator();
     const gain = this.ctx.createGain();

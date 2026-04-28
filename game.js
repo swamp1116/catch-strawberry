@@ -116,9 +116,29 @@ const StrawberryState = {
 class SoundEngine {
   constructor() {
     this.ctx = null;
-    this.masterVolume = 0.5;
+    this.masterVolume = 0.7;  // iOS 호환성을 위해 살짝 높임
     this.muted = false;
     this.unlocked = false; // iOS Safari unlock 상태
+    this.installGlobalUnlock();
+  }
+
+  // 페이지 어디서든 첫 터치/클릭 한 번에 audio 시스템 깨움 (iOS Safari 핵심)
+  installGlobalUnlock() {
+    const tryUnlock = () => {
+      this.unlock();
+      if (this.unlocked) {
+        // 깨워졌으면 리스너 제거
+        document.removeEventListener('touchstart', tryUnlock, true);
+        document.removeEventListener('touchend', tryUnlock, true);
+        document.removeEventListener('click', tryUnlock, true);
+        document.removeEventListener('pointerdown', tryUnlock, true);
+      }
+    };
+    // capture phase로 가장 먼저 호출되게
+    document.addEventListener('touchstart', tryUnlock, true);
+    document.addEventListener('touchend', tryUnlock, true);
+    document.addEventListener('click', tryUnlock, true);
+    document.addEventListener('pointerdown', tryUnlock, true);
   }
 
   // 사용자 입력 후에 AudioContext 초기화 (브라우저 정책)
@@ -126,21 +146,26 @@ class SoundEngine {
     if (!this.ctx) {
       const AC = window.AudioContext || window.webkitAudioContext;
       if (!AC) return false;
-      this.ctx = new AC();
+      try {
+        this.ctx = new AC();
+      } catch (e) {
+        console.warn('AudioContext create failed:', e);
+        return false;
+      }
     }
     if (this.ctx.state === 'suspended') {
+      // resume()은 promise 반환 - iOS에서 결과 안 기다리면 첫 sound 무시될 수 있음
       this.ctx.resume().catch(() => {});
     }
     return true;
   }
 
   // iOS Safari unlock - 사용자 제스처 안에서 무음 한 번 재생해 컨텍스트 깨움
-  // 이거 안 하면 모바일에서 사운드가 영원히 안 나올 수 있음
   unlock() {
     if (this.unlocked) return;
     if (!this.ensureContext()) return;
     try {
-      // 거의 무음의 짧은 osc를 재생해서 iOS audio 시스템 깨우기
+      // 1. 거의 무음의 짧은 osc 재생
       const osc = this.ctx.createOscillator();
       const gain = this.ctx.createGain();
       gain.gain.value = 0.0001; // 사실상 무음
@@ -148,7 +173,26 @@ class SoundEngine {
       gain.connect(this.ctx.destination);
       osc.start(0);
       osc.stop(this.ctx.currentTime + 0.01);
-      this.unlocked = true;
+
+      // 2. iOS 추가 트릭: 빈 buffer source도 재생 (구버전 iOS 대응)
+      const buffer = this.ctx.createBuffer(1, 1, 22050);
+      const source = this.ctx.createBufferSource();
+      source.buffer = buffer;
+      source.connect(this.ctx.destination);
+      source.start(0);
+
+      // 3. 상태 확인
+      if (this.ctx.state === 'running') {
+        this.unlocked = true;
+        console.log('Audio unlocked. State:', this.ctx.state);
+      } else {
+        console.log('Audio context state after unlock:', this.ctx.state);
+        // 한 번 더 시도
+        this.ctx.resume().then(() => {
+          this.unlocked = true;
+          console.log('Audio unlocked (after resume)');
+        }).catch(err => console.warn('Resume failed:', err));
+      }
     } catch (e) {
       console.warn('Audio unlock failed:', e);
     }

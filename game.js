@@ -163,9 +163,18 @@ class SoundEngine {
   // iOS Safari unlock - 사용자 제스처 안에서 무음 한 번 재생해 컨텍스트 깨움
   unlock() {
     if (this.unlocked) return;
+
+    // ① HTML5 Audio 태그 깨우기 (iOS 무음모드 우회)
+    const iosAudio = document.getElementById('ios-audio-unlocker');
+    if (iosAudio) {
+      iosAudio.play().catch(err => {
+        console.log('iOS audio unlocker play blocked:', err.message);
+      });
+    }
+
     if (!this.ensureContext()) return;
     try {
-      // 1. 거의 무음의 짧은 osc 재생
+      // ② 거의 무음의 짧은 osc 재생
       const osc = this.ctx.createOscillator();
       const gain = this.ctx.createGain();
       gain.gain.value = 0.0001; // 사실상 무음
@@ -174,14 +183,14 @@ class SoundEngine {
       osc.start(0);
       osc.stop(this.ctx.currentTime + 0.01);
 
-      // 2. iOS 추가 트릭: 빈 buffer source도 재생 (구버전 iOS 대응)
+      // ③ iOS 추가 트릭: 빈 buffer source도 재생 (구버전 iOS 대응)
       const buffer = this.ctx.createBuffer(1, 1, 22050);
       const source = this.ctx.createBufferSource();
       source.buffer = buffer;
       source.connect(this.ctx.destination);
       source.start(0);
 
-      // 3. 상태 확인
+      // ④ 상태 확인
       if (this.ctx.state === 'running') {
         this.unlocked = true;
         console.log('Audio unlocked. State:', this.ctx.state);
@@ -190,7 +199,7 @@ class SoundEngine {
         // 한 번 더 시도
         this.ctx.resume().then(() => {
           this.unlocked = true;
-          console.log('Audio unlocked (after resume)');
+          console.log('Audio unlocked (after resume). State:', this.ctx.state);
         }).catch(err => console.warn('Resume failed:', err));
       }
     } catch (e) {
